@@ -1,7 +1,7 @@
 {
     "display_name": "IndexTTS (CosyVoice)",
     "loading_order": 11,
-    "requires": ["tts"],
+    "dependencies": ["tts"],
     "js": "index.js",
     "author": "stan0202",
     "version": "1.0.0",
