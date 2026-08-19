@@ -3,13 +3,19 @@ import { saveTtsProviderSettings } from '../../tts/index.js';
 export { IndexTTSCosyVoiceProvider };
 
 /**
- * IndexTTS provider that speaks the CosyVoice-compatible API:
+ * IndexTTS provider that speaks the CosyVoice-compatible API (extended):
  *   GET  <endpoint>/speakers  -> [{name, voice_id}]
- *   POST <endpoint>/          -> audio/wav   body {text, speaker, emotion?}
+ *   POST <endpoint>/          -> audio/wav   body {text, speaker, ...}
  *
- * Emotion: append a "_<emotion>" suffix to the message text (e.g. "你好_開心")
- * and it will be stripped and sent as the `emotion` field, mapping to an
- * emotion reference wav named  emo_<emotion>.wav  on the server.
+ * Options (all in the provider settings UI):
+ *   - use_emo_text : auto-detect emotion from the spoken text
+ *   - emo_text     : explicit emotion description (overrides use_emo_text)
+ *   - emo_alpha    : emotion strength 0..1
+ *   - speed        : speech speed (>1 = faster)
+ *
+ * Emotion suffix: append "_<name>" to the message (e.g. "你好_開心") to use an
+ * emotion reference wav named emo_<name>.wav.  Priority on the server:
+ *   emo_text  >  use_emo_text  >  emotion reference  >  none.
  */
 class IndexTTSCosyVoiceProvider {
     //########//
@@ -48,14 +54,39 @@ class IndexTTSCosyVoiceProvider {
         format: 'wav',
         lang: 'auto',
         streaming: false,
+        use_emo_text: false,
+        emo_text: '',
+        emo_alpha: 0.65,
+        speed: 1.0,
     };
 
     get settingsHtml() {
+        const s = this.settings || this.defaultSettings;
         let html = `
         <label for="tts_indextts_endpoint">IndexTTS (CosyVoice) Endpoint:</label>
-        <input id="tts_indextts_endpoint" type="text" class="text_pole" maxlength="250" value="${this.defaultSettings.provider_endpoint}"/>
-        <span>Point to a server exposing the CosyVoice API (GET /speakers, POST /).</span><br/>
-        <span>Emotion: type a message ending in <code>_情感名</code> (e.g. <code>你好_開心</code>) to use an emotion reference <code>emo_情感名.wav</code>.</span><br/>
+        <input id="tts_indextts_endpoint" type="text" class="text_pole" maxlength="250" value="${s.provider_endpoint}"/>
+        <span>Server exposing the CosyVoice API (GET /speakers, POST /).</span><br/>
+        <br/>
+
+        <label for="tts_indextts_emo_text">Emotion description (emo_text):</label>
+        <input id="tts_indextts_emo_text" type="text" class="text_pole" maxlength="200" value="${s.emo_text || ''}"/>
+        <span>Optional. Explicit emotion, e.g. 興奮地、帶著哭腔. Takes priority over the toggle below.</span><br/>
+        <br/>
+
+        <label style="display:inline-flex;align-items:center;gap:8px;margin-top:8px">
+            <input type="checkbox" id="tts_indextts_use_emo_text" ${s.use_emo_text ? 'checked' : ''}/>
+            Auto emotion from text (use_emo_text)
+        </label>
+        <span>Detects the emotion from the spoken text itself.</span><br/>
+        <br/>
+
+        <label for="tts_indextts_emo_alpha">Emotion strength (emo_alpha): <span id="tts_indextts_emo_alpha_val">${s.emo_alpha}</span></label>
+        <input id="tts_indextts_emo_alpha" type="range" min="0" max="1" step="0.05" value="${s.emo_alpha}"/>
+        <br/>
+
+        <label for="tts_indextts_speed">Speech speed: <span id="tts_indextts_speed_val">${s.speed}</span>×</label>
+        <input id="tts_indextts_speed" type="range" min="0.5" max="2" step="0.1" value="${s.speed}"/>
+        <span>Higher = faster.</span><br/>
         <br/>
         `;
         return html;
@@ -63,6 +94,10 @@ class IndexTTSCosyVoiceProvider {
 
     onSettingsChange() {
         this.settings.provider_endpoint = $('#tts_indextts_endpoint').val();
+        this.settings.emo_text = ($('#tts_indextts_emo_text').val() || '').trim();
+        this.settings.use_emo_text = $('#tts_indextts_use_emo_text').is(':checked');
+        this.settings.emo_alpha = parseFloat($('#tts_indextts_emo_alpha').val());
+        this.settings.speed = parseFloat($('#tts_indextts_speed').val());
         saveTtsProviderSettings();
         this.changeTTSSettings();
     }
@@ -81,9 +116,32 @@ class IndexTTSCosyVoiceProvider {
             }
         }
 
+        // settingsHtml is already in the DOM (ST injects it before loadSettings),
+        // but it was rendered with default values — re-apply the loaded/persisted ones.
         $('#tts_indextts_endpoint')
             .val(this.settings.provider_endpoint)
             .on('change', this.onSettingsChange.bind(this));
+        $('#tts_indextts_emo_text').val(this.settings.emo_text || '');
+        $('#tts_indextts_use_emo_text').prop('checked', !!this.settings.use_emo_text);
+        $('#tts_indextts_emo_alpha').val(this.settings.emo_alpha);
+        $('#tts_indextts_emo_alpha_val').text(this.settings.emo_alpha);
+        $('#tts_indextts_speed').val(this.settings.speed);
+        $('#tts_indextts_speed_val').text(this.settings.speed);
+
+        const bind = () => {
+            if (!$('#tts_indextts_emo_alpha').length) { setTimeout(bind, 50); return; }
+            $('#tts_indextts_emo_alpha').on('input change', () => {
+                $('#tts_indextts_emo_alpha_val').text($('#tts_indextts_emo_alpha').val());
+                this.onSettingsChange();
+            });
+            $('#tts_indextts_speed').on('input change', () => {
+                $('#tts_indextts_speed_val').text($('#tts_indextts_speed').val());
+                this.onSettingsChange();
+            });
+            $('#tts_indextts_use_emo_text').on('change', this.onSettingsChange.bind(this));
+            $('#tts_indextts_emo_text').on('change', this.onSettingsChange.bind(this));
+        };
+        bind();
 
         await this.checkReady();
         console.info('IndexTTS (CosyVoice): Settings loaded');
@@ -153,11 +211,22 @@ class IndexTTSCosyVoiceProvider {
         const params = {
             text: processedText,
             speaker: voiceId,
+            speed: this.settings.speed,
         };
 
+        // Emotion options (server priority: emo_text > use_emo_text > emotion).
+        const emoText = (this.settings.emo_text || '').trim();
+        if (emoText) {
+            params.emo_text = emoText;
+        }
+        if (this.settings.use_emo_text) {
+            params.use_emo_text = true;
+        }
         if (emotion) {
             params.emotion = emotion;
         }
+        params.emo_alpha = this.settings.emo_alpha;
+
         if (streaming) {
             params.streaming = 1;
         }
