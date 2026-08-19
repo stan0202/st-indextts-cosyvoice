@@ -1,0 +1,13 @@
+{
+    "display_name": "IndexTTS (CosyVoice)",
+    "loading_order": 11,
+    "requires": ["tts"],
+    "js": "index.js",
+    "author": "stan0202",
+    "version": "1.0.0",
+    "description": "IndexTTS 2.x via the CosyVoice-compatible API (GET /speakers, POST /). Supports emotion suffix (_name) for emotion reference audio.",
+    "homePage": "https://github.com/stan0202",
+    "hooks": {
+        "activate": "init"
+    }
+}
