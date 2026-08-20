@@ -237,9 +237,9 @@ class IndexTTSCosyVoiceProvider {
         };
 
         // Spoken language (server accepts ZH/EN/JA/ES/AR; 'auto' lets the server default).
-        const lang = this.settings.lang;
-        if (lang && lang !== 'auto') {
-            params.lang = lang;
+        const serverLang = this.settings.lang;
+        if (serverLang && serverLang !== 'auto') {
+            params.lang = serverLang;
         }
 
         // Emotion options (server priority: emo_text > use_emo_text > emotion).
