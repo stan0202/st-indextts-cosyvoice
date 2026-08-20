@@ -36,6 +36,11 @@ class IndexTTSCosyVoiceProvider {
 
     languageLabels = {
         'Auto': 'auto',
+        'Chinese ZH': 'ZH',
+        'English EN': 'EN',
+        'Japanese JA': 'JA',
+        'Spanish ES': 'ES',
+        'Arabic AR': 'AR',
     };
 
     langKey2LangCode = {
@@ -43,6 +48,8 @@ class IndexTTSCosyVoiceProvider {
         'en': 'en-US',
         'ja': 'ja-JP',
         'ko': 'ko-KR',
+        'es': 'es-ES',
+        'ar': 'ar-SA',
     };
 
     modelTypes = {
@@ -63,6 +70,15 @@ class IndexTTSCosyVoiceProvider {
     get settingsHtml() {
         const s = this.settings || this.defaultSettings;
         let html = `
+        <label for="tts_indextts_language">Language:</label>
+        <select id="tts_indextts_language" class="text_pole">
+        ${Object.entries(this.languageLabels).map(([label, code]) =>
+            `<option value="${code}" ${code === s.lang ? 'selected' : ''}>${label}</option>`).join('\n')
+        }
+        </select>
+        <span>Spoken language for the text-to-speech engine.</span><br/>
+        <br/>
+
         <label for="tts_indextts_endpoint">IndexTTS (CosyVoice) Endpoint:</label>
         <input id="tts_indextts_endpoint" type="text" class="text_pole" maxlength="250" value="${s.provider_endpoint}"/>
         <span>Server exposing the CosyVoice API (GET /speakers, POST /).</span><br/>
@@ -93,6 +109,7 @@ class IndexTTSCosyVoiceProvider {
     }
 
     onSettingsChange() {
+        this.settings.lang = $('#tts_indextts_language').val();
         this.settings.provider_endpoint = $('#tts_indextts_endpoint').val();
         this.settings.emo_text = ($('#tts_indextts_emo_text').val() || '').trim();
         this.settings.use_emo_text = $('#tts_indextts_use_emo_text').is(':checked');
@@ -118,6 +135,9 @@ class IndexTTSCosyVoiceProvider {
 
         // settingsHtml is already in the DOM (ST injects it before loadSettings),
         // but it was rendered with default values — re-apply the loaded/persisted ones.
+        $('#tts_indextts_language')
+            .val(this.settings.lang)
+            .on('change', this.onSettingsChange.bind(this));
         $('#tts_indextts_endpoint')
             .val(this.settings.provider_endpoint)
             .on('change', this.onSettingsChange.bind(this));
@@ -138,6 +158,8 @@ class IndexTTSCosyVoiceProvider {
                 $('#tts_indextts_speed_val').text($('#tts_indextts_speed').val());
                 this.onSettingsChange();
             });
+            $('#tts_indextts_language').on('change', this.onSettingsChange.bind(this));
+            $('#tts_indextts_endpoint').on('change', this.onSettingsChange.bind(this));
             $('#tts_indextts_use_emo_text').on('change', this.onSettingsChange.bind(this));
             $('#tts_indextts_emo_text').on('change', this.onSettingsChange.bind(this));
         };
@@ -213,6 +235,12 @@ class IndexTTSCosyVoiceProvider {
             speaker: voiceId,
             speed: this.settings.speed,
         };
+
+        // Spoken language (server accepts ZH/EN/JA/ES/AR; 'auto' lets the server default).
+        const lang = this.settings.lang;
+        if (lang && lang !== 'auto') {
+            params.lang = lang;
+        }
 
         // Emotion options (server priority: emo_text > use_emo_text > emotion).
         const emoText = (this.settings.emo_text || '').trim();
